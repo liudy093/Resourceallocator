@@ -1,0 +1,31 @@
+---
+kind: pipeline
+type: exec
+name: ResourceAllocator
+
+platform:
+  os: linux
+  arch: amd64
+
+trigger:
+  branch:
+  - master
+  event:
+  - push
+
+steps:
+#- name: submodules
+#  commands:
+#  ## - mkdir ~/.ssh
+#  # - ssh-keyscan -t rsa git.cloudcontrolsystems.cn >> ~/.ssh/known_hosts
+#  # - git config --global url."https://git.cloudcontrolsystems.cn/".insteadOf "gitea@git.cloudcontrolsystems.cn:"
+#  - git submodule update --init --recursive --remote
+
+- name: docker build
+  commands:
+    - docker build -t harbor.cloudcontrolsystems.cn/workflow/resource-allocator:latest .
+    
+- name: push-to-repo
+  commands:
+    - docker login harbor.cloudcontrolsystems.cn -u admin -p bit123
+    - docker push harbor.cloudcontrolsystems.cn/workflow/resource-allocator:latest

@@ -1,0 +1,32 @@
+syntax = "proto3";
+package workflow;
+message WorkflowNode {
+  // 工作流节点名称
+  string name = 1;
+  // 依赖(确认)
+  repeated string dependencies = 2;
+  // image
+  string template = 3;
+  // phase（状态）
+  string phase = 4;
+  // status
+  string node_info = 5;
+  // cpu(核数)
+  uint32 cpu = 6;
+  // 内存(Bytes)
+  uint64 mem = 7;
+  // 环境变量
+  map<string, string> env = 8;
+  // 输入向量
+  repeated string input_vector = 9;
+  // 输出向量
+  repeated string output_vector = 10;
+}
+message Workflow {
+  // 工作流名称
+  string workflow_name = 1;
+  // 工作流类型
+  string style = 2;
+  // 拓扑结构
+  repeated WorkflowNode topology = 3;
+}

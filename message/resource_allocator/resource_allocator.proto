@@ -1,0 +1,142 @@
+syntax = "proto3";
+//option go_package = ".;resource_allocator";
+package resource_allocator;
+
+//资源请求参数
+message ResourceRequest {
+  string schedulerId = 1;             //调度器id
+  int64 timeStamp = 2;                //时间戳
+  resourceDemand currentRequest = 3;  //该调度器当前批次ready_tasks资源请求量
+  resourceDemand nextRequest = 4;     //该调度器下一批次ready_tasks资源请求量
+  resourceDemand allTasksRequest = 5; //当前该调度器所有待分配任务资源请求总量
+  //time_grade暂时用不到。若customization=true且cost_grade=false，则请求的资源都满足；否则，按之前流程走
+  bool customization = 6; //该任务是否属于定制工作流
+  bool time_grade = 7; // 是否存在时间等级
+  bool cost_grade = 8; // 是否花费（资金）等级
+  message resourceDemand {
+    int64 cpu = 1; //基本单位millicore(1Core=1000millicore) [default = 50]
+    int64 mem = 2; //基本单位Mi,1024*1024byte[default = 50]
+    // int64 ephemeralStorage = 3; //临时存储，单位Mi[default = 50]
+  }
+  // message deviceResourceDemand {
+  //    int64 deviceX = 1; //设备X
+  //    int64 deviceY = 2; //设备Y
+  //    int64 deviceZ = 3; //设备Z
+  //}
+}
+
+//分配资源信息
+message ResourceAllocateInfo {
+  string schedulerId = 1;
+  resourceDemand currentRequest = 2;
+  bool currentRequestStatus = 3;
+  message resourceDemand {
+    int64 cpu = 1; //基本单位millicore(1Core=1000millicore) [default = 50]
+    int64 mem = 2; //基本单位Mi,1024*1024byte[default = 100]
+    // int64 ephemeralStorage = 3; //临时存储，单位Mi[default = 50]
+  }
+  // message deviceResourceDemand {
+  //    int64 deviceX = 1; //设备X
+  //    int64 deviceY = 2; //设备Y
+  //    int64 deviceZ = 3; //设备Z
+  //}
+}
+
+// 请求创建调度器POD
+message CreateSchedulerPodRequest {
+  //镜像
+  string image = 1;
+  //基本单位 millicore(1Core=1000millicore)
+  int64 cpu = 2;
+  //基本单位 MiB
+  int64 mem = 3;
+  //需要输入给 POD 的环境变量
+  repeated string env = 4;
+}
+
+message CreateSchedulerPodResponse {
+  //成功创建,根据当前剩余资源返回创建调度起pod的上限数 成功>=1，失败置为0）
+  int32 result = 1;
+  //在失败状态下，可以设置状态码
+  //成功状态（result>=1），客户端不关系此字段，置为 0 即可
+  int32 err_no = 2;
+
+}
+
+//请求创建任务POD
+message CreateTaskPodRequest {
+  //workflow的ID
+  string workflowId = 1;
+  //taskName
+  string taskName = 2;
+  //任务镜像
+  string image = 3;
+  //基本单位 millicore(1Core=1000millicore)
+  int64 cpu = 4;
+  //基本单位 MiB
+  int64 mem = 5;
+  //需要输入给 POD 的环境变量
+  map<string, string> env = 6;
+  // 输入向量
+  repeated string input_vector = 7;
+  // 输出向量
+  repeated string output_vector = 8;
+  //time_grade暂时用不到。若customization=true且cost_grade=false，
+  //则pod配置资源最大化，即request=limit；若customization=true且cost_grade=true，
+  //则pod配置资源最小化；否则，按之前流程走
+  bool customization = 9; //该任务是否属于定制工作流
+  bool time_grade = 10; // 是否存在时间等级
+  bool cost_grade = 11; // 是否花费（资金）等级
+}
+message CreateTaskPodResponse {
+  //成功创建 pod 的状态码（成功>=1，失败置为0）
+  int32 result = 1;
+  //pod共享存储路径
+  string volumePath = 2;
+  //在失败状态下，可以设置状态码
+  //成功状态（result>=1），客户端不关系此字段，置为 0 即可
+  int32 err_no = 3;
+
+}
+//调度器控制器推送调度器保活信号
+message UpdateSchedulerAliveStatusRequest{
+  //调度器Id
+  string schedulerId = 1;
+  //保活状态
+  bool AliveStatus = 2;
+}
+message UpdateSchedulerAliveStatusResponse {
+  //成功更新调度器保活状态的状态码（成功>=1，失败置为0）
+  int32 result = 1;
+  //在失败状态下，可以设置状态码
+  //客户端不关系此字段，置为 0 即可
+  int32 err_no = 2;
+}
+//调度器发送给资源分配器执行完的工作流
+message DeleteWorkflowNamespaceRequest {
+  //workflow的ID
+  string workflowId = 1;
+}
+message DeleteWorkflowNamespaceResponse {
+  //资源分配器删除该工作流的namespace的状态码（成功>=1，失败置为0）
+  int32 result = 1;
+}
+//调度器控制器获取可分配的调度器数量请求
+message  GetSchedulerNumRequest {
+    //调度器的资源request
+    int64 cpu = 1;
+    int64 mem = 2;
+}
+//响应调度器控制器请求
+message GetSchedulerNumResponse  {
+   int64 schedulerPodNum = 1;
+}
+//资源请求服务service
+service ResourceRequestService {
+  rpc GetResourceAllocateInfo(ResourceRequest) returns (ResourceAllocateInfo);
+  rpc CreateSchedulerPod(CreateSchedulerPodRequest) returns (CreateSchedulerPodResponse);
+  rpc CreateTaskPod(CreateTaskPodRequest) returns (CreateTaskPodResponse);
+  rpc DeleteWorkflowNamespace(DeleteWorkflowNamespaceRequest) returns (DeleteWorkflowNamespaceResponse);
+  rpc UpdateSchedulerAliveStatus(UpdateSchedulerAliveStatusRequest) returns (UpdateSchedulerAliveStatusResponse);
+  rpc GetAllocatableSchedulerNum(GetSchedulerNumRequest) returns (GetSchedulerNumResponse);
+}

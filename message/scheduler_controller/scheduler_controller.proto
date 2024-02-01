@@ -1,0 +1,79 @@
+ syntax = "proto3";
+package scheduler_controller;
+service SchedulerController {
+  // 调度器内保活器向调度器控制器发送保活信号
+  rpc KeepAlive(KeepAliveRequest) returns(KeepAliveReply);
+  // 前端输入工作流
+  rpc InputWorkflow(InputWorkflowRequest) returns(InputWorkflowReply);
+  // 导出工作流ID
+  rpc FetchWorkflowIDList(WorkflowIDListRequest) returns(WorkflowIDListReply);
+  // 选择某一个工作流查看DAG
+  rpc GetWorkflowByID(GetWorkflowByIdRequest) returns(GetWorkflowByIdReply);
+  // 注册资源分配器
+  rpc RegisterResourceAllocator(RegisterRARequest) returns(RegisterRAReply);
+}
+message KeepAliveRequest {
+  // 调度器id
+  string sid = 1;
+  // 调度器自测压力值（0~100，整数）
+  fixed32 pressure = 2;
+  // 调度器承载力（还可以承载/接收多少工作流，单位：个，整数）
+  fixed32 capacity = 3;
+  // 保活序号（单调增，整数，从1开始）
+  uint64 serial_number = 4;
+  // ipv4地址(ip:port)
+  string ipv4 = 5;
+  // 集群id（必须保证与集群内资源分配器使用相同的集群id）
+  string cluster_id = 6;
+}
+message KeepAliveReply {
+  // 下一次发送保活信号等待时间(从收到此应答到再次发送保活信号的等待时间，单位：秒)
+  // 不会小于 1 秒
+  int32 wait_secs = 1;
+}
+message InputWorkflowRequest {
+  //
+  repeated bytes workflow = 1;
+}
+message InputWorkflowReply { uint32 accept = 1; }
+message WorkflowIDListRequest {}
+message WorkflowIDListReply { repeated string ids = 1; }
+message GetWorkflowByIdRequest { string workflow_id = 1; }
+message GetWorkflowByIdReply { string workflow_dag = 1; }
+message RegisterRARequest {
+  // 集群id
+  string cluster_id = 1;
+  // ipv4地址(ip:port)
+  string ipv4 = 2;
+}
+message RegisterRAReply {string boot_id = 1; }
+message WorkflowNode {
+  // 工作流节点名称
+  string name = 1;
+  // 依赖(确认)
+  repeated string dependencies = 2;
+  // image
+  string template = 3;
+  // phase（状态）
+  string phase = 4;
+  // status
+  string node_info = 5;
+  // cpu(核数)
+  uint32 cpu = 6;
+  // 内存(Bytes)
+  uint64 mem = 7;
+  // 环境变量
+  map<string, string> env = 8;
+  // 输入向量
+  repeated string input_vector = 9;
+  // 输出向量
+  repeated string output_vector = 10;
+}
+message Workflow {
+  // 工作流名称
+  string workflow_name = 1;
+  // 工作流类型
+  string style = 2;
+  // 拓扑结构
+  repeated WorkflowNode topology = 3;
+}
