@@ -31,4 +31,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ env.DOCKERHUB_USERNAME }}/ResourceAllocator:latest
+          tags: ${{ env.DOCKERHUB_USERNAME }}/adaptive-resource:latest
