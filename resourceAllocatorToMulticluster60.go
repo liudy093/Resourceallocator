@@ -625,6 +625,7 @@ func recoverCreatePodFail() {
 	}
 }
 
+// 生成任务pod函数
 // func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest ,clientService *kubernetes.Clientset,
 //
 //	podNamespace *v1.Namespace, IsfirstPod bool,pvcClient *v1.PersistentVolumeClaim,saClient *v1.ServiceAccount)(string, error){
@@ -848,6 +849,26 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 			log.Println("This is a customized task pod that cares about cost.")
 		}
 	} else { //若customization=false,用户无定制化工作流，按照原来的策略，则pod服务质量为Guaranteed，即request=limit；
+		// 初始化Pod中容器的环境变量map
+		envVars := []v1.EnvVar{
+			{
+				Name:  "VOLUME_PATH",
+				Value: volumePathInContainer,
+			},
+			{
+				Name:  "ENV_MAP",
+				Value: string(data),
+			},
+		}
+		// 遍历request.Env映射，为每个环境变量创建一个v1.EnvVar对象并追加到envVars map中
+		for k, v := range request.Env {
+			envVar := v1.EnvVar{
+				Name:  k,
+				Value: v,
+			}
+			envVars = append(envVars, envVar)
+		}
+		// 创建非定制化的任务Pod
 		pod.Spec = v1.PodSpec{
 			SchedulerName: schedulerName,
 			//RestartPolicy: v1.RestartPolicyAlways,
@@ -892,16 +913,7 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 							//SubPath: pvcClient.ObjectMeta.Name,
 						},
 					},
-					Env: []v1.EnvVar{
-						v1.EnvVar{
-							Name:  "VOLUME_PATH",
-							Value: volumePathInContainer,
-						},
-						v1.EnvVar{
-							Name:  "ENV_MAP",
-							Value: string(data),
-						},
-					},
+					Env: envVars,
 				},
 			},
 		}
@@ -1523,8 +1535,6 @@ func recoverResourceAllocateAlgorithmFail() {
 		log.Println("recovered from ", r)
 	}
 }
-
-
 
 // 自适应资源分配算法
 func adapResourceAllocateAlgorithm(task *resource_allocator.CreateTaskPodRequest) (cpuNum uint64, memNum uint64) {
