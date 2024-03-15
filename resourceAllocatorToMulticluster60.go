@@ -868,6 +868,9 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 			}
 			envVars = append(envVars, envVar)
 		}
+		// 输出环境变量envVars
+		log.Printf("This is the envVars of the task pod: %v.\n", envVars)
+
 		// 创建非定制化的任务Pod
 		pod.Spec = v1.PodSpec{
 			SchedulerName: schedulerName,
