@@ -859,14 +859,10 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 				Name:  "ENV_MAP",
 				Value: string(data),
 			},
-		}
-		// 遍历request.Env映射，为每个环境变量创建一个v1.EnvVar对象并追加到envVars map中
-		for k, v := range request.Env {
-			envVar := v1.EnvVar{
-				Name:  k,
-				Value: v,
-			}
-			envVars = append(envVars, envVar)
+			{
+				Name:  "TESTSET_PART_NUMBER",
+				Value: request.Env["TESTSET_PART_NUMBER"],
+			},
 		}
 		// 输出环境变量envVars
 		log.Printf("This is the envVars of the task pod: %v.\n", envVars)
