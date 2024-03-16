@@ -674,7 +674,7 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 		"input":  inputVector,
 		"output": outputVector,
 	}
-	//data, err := json.Marshal(taskInputOutputDataMap)
+	data, err := json.Marshal(taskInputOutputDataMap)
 	//if err != nil {
 	//	//log.Println("json Marshal is err: ", err)
 	//	panic(err)
