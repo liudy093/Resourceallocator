@@ -674,20 +674,25 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 		"output": outputVector,
 	}
 	data, err := json.Marshal(taskInputOutputDataMap)
+	if err != nil {
+		//log.Println("json Marshal is err: ", err)
+		panic(err)
+	}
 
+	//测试用例
+	request.InputVector = append(request.InputVector, "\\n\\x13TEST_INPUT\\x12\\x011")
+	// 然后调用 ParseEnvVarsFromInputVector 等逻辑
 	//request scheduler有问题，环境变量在InputVector中，Env为空
 	parsedEnvVars, err := ParseEnvVarsFromInputVector(request.InputVector)
 	if err != nil {
 		log.Println("ParseEnvVarsFromInputVector failed")
 		return "", err
 	}
-	log.Printf("InputVector: %+v\n", request.InputVector)
-	log.Printf("Parsed envVars: %+v\n", parsedEnvVars)
+	log.Printf("This is request: %+v\n", request)
+	log.Printf("This is InputVector: %+v\n", request.InputVector)
+	log.Printf("This is ParsedenvVars: %+v\n", parsedEnvVars)
+	log.Printf("This is data: %+v\n", string(data))
 
-	if err != nil {
-		//log.Println("json Marshal is err: ", err)
-		panic(err)
-	}
 	// 创建task pod
 	pod := new(v1.Pod)
 	pod.TypeMeta = metav1.TypeMeta{Kind: "Pod", APIVersion: "v1"}
