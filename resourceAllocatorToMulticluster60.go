@@ -662,6 +662,12 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 	//所有的pod的容器内挂载volume路径为/nfs/data/
 	volumePathInContainer := "/nfs/data/"
 
+	//输出request.env
+
+	log.Printf("This is request %+v\n", request)
+
+	log.Printf("This is request %+v\n", request.Env)
+
 	//使用自适应资源分配算法
 	if os.Getenv("RESOURCE_ALGORITHM") == "adaptive" {
 		cpuNum, memNum := adapResourceAllocateAlgorithm(request)
