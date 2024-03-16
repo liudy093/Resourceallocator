@@ -677,8 +677,12 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 
 	//request scheduler有问题，环境变量在InputVector中，Env为空
 	parsedEnvVars, err := ParseEnvVarsFromInputVector(request.InputVector)
-	//输出data
-	log.Printf("This is data %+v\n", data)
+	if err != nil {
+		log.Println("ParseEnvVarsFromInputVector failed")
+		return "", err
+	}
+	log.Printf("InputVector: %+v\n", request.InputVector)
+	log.Printf("Parsed envVars: %+v\n", parsedEnvVars)
 
 	if err != nil {
 		//log.Println("json Marshal is err: ", err)
