@@ -20,6 +20,7 @@ import (
 	"net"
 	"os"
 	_ "path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -625,6 +626,30 @@ func recoverCreatePodFail() {
 	}
 }
 
+// 解析错误的input_vector
+func ParseEnvVarsFromInputVector(inputVectors []string) (map[string]string, error) {
+	envVars := make(map[string]string)
+
+	// 正则表达式用于匹配键和值
+	re := regexp.MustCompile(`\\x[0-9a-fA-F]{2}(.*?)\\x12\\x0[1-3](\d+)`)
+
+	for _, input := range inputVectors {
+		// 尝试找到匹配的键值对
+		matches := re.FindAllStringSubmatch(input, -1)
+
+		for _, match := range matches {
+			if len(match) >= 3 {
+				// 第一组捕获为键，第二组捕获为值
+				key := match[1]
+				value := match[2]
+				envVars[key] = value
+			}
+		}
+	}
+
+	return envVars, nil
+}
+
 // 生成任务pod函数
 // func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest ,clientService *kubernetes.Clientset,
 //
@@ -649,6 +674,12 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 		"output": outputVector,
 	}
 	data, err := json.Marshal(taskInputOutputDataMap)
+
+	//request scheduler有问题，环境变量在InputVector中，Env为空
+	parsedEnvVars, err := ParseEnvVarsFromInputVector(request.InputVector)
+	//输出data
+	log.Printf("This is data %+v\n", data)
+
 	if err != nil {
 		//log.Println("json Marshal is err: ", err)
 		panic(err)
@@ -661,12 +692,6 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 		Annotations: map[string]string{"multicluster.admiralty.io/elect": ""}}
 	//所有的pod的容器内挂载volume路径为/nfs/data/
 	volumePathInContainer := "/nfs/data/"
-
-	//输出request.env
-
-	log.Printf("This is request %+v\n", request)
-
-	log.Printf("This is request %+v\n", request.Env)
 
 	//使用自适应资源分配算法
 	if os.Getenv("RESOURCE_ALGORITHM") == "adaptive" {
@@ -866,19 +891,16 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 			//	Value: string(data),
 			//},
 		}
-		// 遍历request.Env映射，为每个环境变量创建一个v1.EnvVar对象并追加到envVars map中
-		for k, v := range request.Env {
+		// 将解析的环境变量map添加到envVars中
+		for name, value := range parsedEnvVars {
 			envVar := v1.EnvVar{
-				Name:  k,
-				Value: v,
+				Name:  name,
+				Value: value,
 			}
-			//输出环境变量envVar
 			envVars = append(envVars, envVar)
 		}
-		// 循环输出环境变量envVars
-		for _, envVar := range envVars {
-			log.Printf("envVar.Name: %s, envVar.Value: %s.\n", envVar.Name, envVar.Value)
-		}
+		//输出envVars
+		log.Printf("This is envVars %+v\n", envVars)
 
 		// 创建非定制化的任务Pod
 		pod.Spec = v1.PodSpec{
