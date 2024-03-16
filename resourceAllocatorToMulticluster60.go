@@ -855,10 +855,10 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 				Name:  "VOLUME_PATH",
 				Value: volumePathInContainer,
 			},
-			{
-				Name:  "ENV_MAP",
-				Value: string(data),
-			},
+			//{
+			//	Name:  "ENV_MAP",
+			//	Value: string(data),
+			//},
 		}
 		// 遍历request.Env映射，为每个环境变量创建一个v1.EnvVar对象并追加到envVars map中
 		for k, v := range request.Env {
