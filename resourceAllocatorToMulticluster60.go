@@ -671,6 +671,9 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 		"input":  inputVector,
 		"output": outputVector,
 	}
+	tempData, _ := json.Marshal(taskInputOutputDataMap["input"])
+	log.Printf("Temp Serialized InputVector: %s\n", string(tempData))
+
 	//data, err := json.Marshal(taskInputOutputDataMap)
 	//if err != nil {
 	//	//log.Println("json Marshal is err: ", err)
