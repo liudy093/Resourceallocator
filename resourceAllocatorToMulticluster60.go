@@ -641,8 +641,8 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 	if IsfirstPod {
 		//hostPath := "/nfs/data/"
 	}
-	//检查request.Env
-	log.Printf("This is the request.Env of the task pod: %v.\n", request.Env)
+	//检查request
+	log.Printf("This is the request of the task pod: %v.\n", request)
 	/*request中的InputVector和OutputVector数组，封装到MAP中，序列化为Key-Value注入任务pod*/
 	inputVector := request.InputVector
 	outputVector := request.OutputVector
