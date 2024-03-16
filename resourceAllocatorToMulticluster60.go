@@ -674,7 +674,7 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 		"input":  inputVector,
 		"output": outputVector,
 	}
-	data, err := json.Marshal(taskInputOutputDataMap)
+	//data, err := json.Marshal(taskInputOutputDataMap)
 	//if err != nil {
 	//	//log.Println("json Marshal is err: ", err)
 	//	panic(err)
@@ -687,6 +687,7 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 		log.Println("ParseEnvVarsFromInputVector failed")
 		return "", err
 	}
+
 	log.Printf("This is request: %+v\n", request)
 	log.Printf("This is InputVector: %+v\n", request.InputVector)
 	log.Printf("This is ParsedenvVars: %+v\n", parsedEnvVars)
@@ -700,6 +701,28 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 		Annotations: map[string]string{"multicluster.admiralty.io/elect": ""}}
 	//所有的pod的容器内挂载volume路径为/nfs/data/
 	volumePathInContainer := "/nfs/data/"
+
+	// 初始化Pod中容器的环境变量map
+	envVars := []v1.EnvVar{
+		{
+			Name:  "VOLUME_PATH",
+			Value: volumePathInContainer,
+		},
+		//{
+		//	Name:  "ENV_MAP",
+		//	Value: string(data),
+		//},
+	}
+	// 将解析的环境变量map添加到envVars中
+	for name, value := range parsedEnvVars {
+		envVar := v1.EnvVar{
+			Name:  name,
+			Value: value,
+		}
+		envVars = append(envVars, envVar)
+	}
+	//输出envVars
+	log.Printf("This is envVars %+v\n", envVars)
 
 	//使用自适应资源分配算法
 	if os.Getenv("RESOURCE_ALGORITHM") == "adaptive" {
@@ -749,16 +772,7 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 							//SubPath: pvcClient.ObjectMeta.Name,
 						},
 					},
-					Env: []v1.EnvVar{
-						v1.EnvVar{
-							Name:  "VOLUME_PATH",
-							Value: volumePathInContainer,
-						},
-						v1.EnvVar{
-							Name:  "ENV_MAP",
-							Value: string(data),
-						},
-					},
+					Env: envVars,
 				},
 			},
 		}
@@ -813,16 +827,7 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 								//SubPath: pvcClient.ObjectMeta.Name,
 							},
 						},
-						Env: []v1.EnvVar{
-							v1.EnvVar{
-								Name:  "VOLUME_PATH",
-								Value: volumePathInContainer,
-							},
-							v1.EnvVar{
-								Name:  "ENV_MAP",
-								Value: string(data),
-							},
-						},
+						Env: envVars,
 					},
 				},
 			}
@@ -872,43 +877,13 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 								//SubPath: pvcClient.ObjectMeta.Name,
 							},
 						},
-						Env: []v1.EnvVar{
-							v1.EnvVar{
-								Name:  "VOLUME_PATH",
-								Value: volumePathInContainer,
-							},
-							v1.EnvVar{
-								Name:  "ENV_MAP",
-								Value: string(data),
-							},
-						},
+						Env: envVars,
 					},
 				},
 			}
 			log.Println("This is a customized task pod that cares about cost.")
 		}
 	} else { //若customization=false,用户无定制化工作流，按照原来的策略，则pod服务质量为Guaranteed，即request=limit；
-		// 初始化Pod中容器的环境变量map
-		envVars := []v1.EnvVar{
-			{
-				Name:  "VOLUME_PATH",
-				Value: volumePathInContainer,
-			},
-			//{
-			//	Name:  "ENV_MAP",
-			//	Value: string(data),
-			//},
-		}
-		// 将解析的环境变量map添加到envVars中
-		for name, value := range parsedEnvVars {
-			envVar := v1.EnvVar{
-				Name:  name,
-				Value: value,
-			}
-			envVars = append(envVars, envVar)
-		}
-		//输出envVars
-		log.Printf("This is envVars %+v\n", envVars)
 
 		// 创建非定制化的任务Pod
 		pod.Spec = v1.PodSpec{
