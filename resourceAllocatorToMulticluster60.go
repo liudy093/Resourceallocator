@@ -662,12 +662,9 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 	//schedulerName := os.Getenv("SCHEDULER")
 	//schedulerName := "deepk8s-scheduler"
 	taskPodName := clusterId + "-" + request.WorkflowId + "-" + request.TaskName
-	//首次创建pod，写入volumes的挂载路径到pod
-	//否则，从调度器grpc client env获取
-	if IsfirstPod {
-		//hostPath := "/nfs/data/"
-	}
+
 	/*request中的InputVector和OutputVector数组，封装到MAP中，序列化为Key-Value注入任务pod*/
+	log.Printf("This is InputVector: 1-%+v\n", request.InputVector)
 	inputVector := request.InputVector
 	outputVector := request.OutputVector
 	taskInputOutputDataMap := map[string][]string{
@@ -682,6 +679,8 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 
 	// 然后调用 ParseEnvVarsFromInputVector 等逻辑
 	//request scheduler有问题，环境变量在InputVector中，Env为空
+	log.Printf("This is taskInputOutputDataMap: 1-%+v\n", taskInputOutputDataMap)
+	log.Printf("This is InputVector: 2-%+v\n", request.InputVector)
 	parsedEnvVars, err := ParseEnvVarsFromInputVector(taskInputOutputDataMap)
 	if err != nil {
 		log.Println("ParseEnvVarsFromInputVector failed")
@@ -689,9 +688,9 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 	}
 
 	log.Printf("This is request: %+v\n", request)
-	log.Printf("This is InputVector: %+v\n", request.InputVector)
+	log.Printf("This is InputVector: 3-%+v\n", request.InputVector)
 	log.Printf("This is ParsedenvVars: %+v\n", parsedEnvVars)
-	log.Printf("This is taskInputOutputDataMap: %+v\n", taskInputOutputDataMap)
+	log.Printf("This is taskInputOutputDataMap: 2-%+v\n", taskInputOutputDataMap)
 
 	// 创建task pod
 	pod := new(v1.Pod)
