@@ -631,7 +631,7 @@ func ParseEnvVarsFromInputVector(inputVector []string) (map[string]string, error
 	envVars := make(map[string]string)
 
 	// 正则表达式用于匹配键和值
-	re := regexp.MustCompile(`\\n\\x[0-9a-fA-F]{2}(\w+)\\x12.(\d+)`)
+	re := regexp.MustCompile(`\n.*?(\w+).*?\x12.*?(\d+)`)
 
 	for _, item := range inputVector {
 		matches := re.FindStringSubmatch(item)
