@@ -627,20 +627,25 @@ func recoverCreatePodFail() {
 }
 
 // 解析错误的input_vector
-func ParseEnvVarsFromInputVector(taskInputOutputDataMap map[string][]string) (map[string]string, error) {
+func ParseEnvVarsFromInputString(inputString string) (map[string]string, error) {
 	envVars := make(map[string]string)
 
 	// 正则表达式用于匹配键和值
-	re := regexp.MustCompile(`\\x[0-9a-fA-F]{2}(.*?)\\x12\\x0[1-3](\d+)`)
-	// 主要关注 "input" 部分
-	inputVector := taskInputOutputDataMap["input"]
-	for _, input := range inputVector {
-		// 尝试找到匹配的键值对
-		matches := re.FindAllStringSubmatch(input, -1)
+	re := regexp.MustCompile(`\\n(.+?)\\x12\\x0[1-3](\d+)`)
 
+	// 去除字符串开头和结尾的方括号
+	trimmedInput := strings.Trim(inputString, "[]")
+
+	// 使用逗号分割字符串来获取中间的各个元素
+	elements := strings.Split(trimmedInput, "\",\"")
+
+	for _, element := range elements {
+		// 去除元素开头和结尾的引号
+		trimmedElement := strings.Trim(element, "\"")
+
+		matches := re.FindAllStringSubmatch(trimmedElement, -1)
 		for _, match := range matches {
 			if len(match) >= 3 {
-				// 第一组捕获为键，第二组捕获为值
 				key := match[1]
 				value := match[2]
 				envVars[key] = value
@@ -684,7 +689,7 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 	//request scheduler有问题，环境变量在InputVector中，Env为空
 	log.Printf("This is taskInputOutputDataMap: 1-%+v\n", taskInputOutputDataMap)
 	log.Printf("This is InputVector: 2-%+v\n", request.InputVector)
-	parsedEnvVars, err := ParseEnvVarsFromInputVector(taskInputOutputDataMap)
+	parsedEnvVars, err := ParseEnvVarsFromInputString(string(tempData))
 	if err != nil {
 		log.Println("ParseEnvVarsFromInputVector failed")
 		return "", err
