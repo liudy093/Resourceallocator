@@ -627,35 +627,19 @@ func recoverCreatePodFail() {
 }
 
 // 解析错误的input_vector
-func ParseEnvVarsFromInputString(inputString string) (map[string]string, error) {
+func ParseEnvVarsFromInputVector(inputVector []string) (map[string]string, error) {
 	envVars := make(map[string]string)
 
 	// 正则表达式用于匹配键和值
-	re := regexp.MustCompile(`\\n(.+?)\\x12\\x0+[1-3](\d+)`)
+	re := regexp.MustCompile(`\n.(\w+).+\x12.(\d+)`)
 
-	// 去除最外层的方括号
-	trimmedInput := strings.Trim(inputString, "[]")
-
-	// 使用逗号分割字符串来获取中间的各个元素，由于输入是JSON格式，首先去除方括号后，再处理转义引号
-	elements := strings.Split(trimmedInput, "\",\"")
-
-	for i, element := range elements {
-		// 对第一个和最后一个元素去除多余的引号，这是因为Split操作可能不会移除非分隔部分的引号
-		if i == 0 {
-			element = strings.TrimPrefix(element, "\"")
-		}
-		if i == len(elements)-1 {
-			element = strings.TrimSuffix(element, "\"")
-		}
-
-		matches := re.FindAllStringSubmatch(element, -1)
-		for _, match := range matches {
-			if len(match) >= 3 {
-				// 第一组捕获为键，第二组捕获为值
-				key := match[1]
-				value := match[2]
-				envVars[key] = value
-			}
+	for _, item := range inputVector {
+		matches := re.FindStringSubmatch(item)
+		if len(matches) == 3 {
+			// 第一个捕获组是键，第二个是值
+			key := matches[1]
+			value := matches[2]
+			envVars[key] = value
 		}
 	}
 
@@ -675,16 +659,12 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 	taskPodName := clusterId + "-" + request.WorkflowId + "-" + request.TaskName
 
 	/*request中的InputVector和OutputVector数组，封装到MAP中，序列化为Key-Value注入任务pod*/
-	log.Printf("This is InputVector: 1-%+v\n", request.InputVector)
-	inputVector := request.InputVector
-	outputVector := request.OutputVector
-	taskInputOutputDataMap := map[string][]string{
-		"input":  inputVector,
-		"output": outputVector,
-	}
-	tempData, _ := json.Marshal(taskInputOutputDataMap["input"])
-	log.Printf("Temp Serialized InputVector: %s\n", string(tempData))
-
+	//inputVector := request.InputVector
+	//outputVector := request.OutputVector
+	//taskInputOutputDataMap := map[string][]string{
+	//	"input":  inputVector,
+	//	"output": outputVector,
+	//}
 	//data, err := json.Marshal(taskInputOutputDataMap)
 	//if err != nil {
 	//	//log.Println("json Marshal is err: ", err)
@@ -692,16 +672,13 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 	//}
 
 	//request scheduler有问题，环境变量在InputVector中，Env为空
-	log.Printf("This is taskInputOutputDataMap: 1-%#v\n", taskInputOutputDataMap)
-	log.Printf("This is InputVector: 2-%#v\n", request.InputVector)
-	parsedEnvVars, err := ParseEnvVarsFromInputString(string(tempData))
+	parsedEnvVars, err := ParseEnvVarsFromInputVector(request.InputVector)
 	if err != nil {
-		log.Println("ParseEnvVarsFromInputVector failed")
+		log.Println("ParseEnvVarsFromInputVector is err: ", err)
 		return "", err
 	}
-
-	log.Printf("This is request: %#v\n", request)
-	log.Printf("This is InputVector: 3-%#v\n", request.InputVector)
+	//输出解析的环境变量map
+	log.Printf("This is InputVector: %#v\n", request.InputVector)
 	log.Printf("This is ParsedenvVars: %#v\n", parsedEnvVars)
 
 	// 创建task pod
@@ -733,7 +710,7 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 		envVars = append(envVars, envVar)
 	}
 	//输出envVars
-	log.Printf("This is envVars %+v\n", envVars)
+	log.Printf("This is envVars %#v\n", envVars)
 
 	//使用自适应资源分配算法
 	if os.Getenv("RESOURCE_ALGORITHM") == "adaptive" {
