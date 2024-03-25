@@ -696,10 +696,6 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 			Name:  "VOLUME_PATH",
 			Value: volumePathInContainer,
 		},
-		//{
-		//	Name:  "ENV_MAP",
-		//	Value: string(data),
-		//},
 	}
 	// 将解析的环境变量map添加到envVars中
 	for name, value := range parsedEnvVars {
@@ -711,6 +707,8 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 	}
 	//输出envVars
 	log.Printf("This is envVars %#v\n", envVars)
+	//输出cpu和mem
+	log.Printf("This is cpu: %d, mem: %d\n", request.Cpu, request.Mem)
 
 	//使用自适应资源分配算法
 	if os.Getenv("RESOURCE_ALGORITHM") == "adaptive" {
@@ -1728,20 +1726,18 @@ func resourceAllocateAlgorithm(request *resource_allocator.ResourceRequest) reso
 	var allTasksRequestMemNum uint64
 	var cpuNum uint64
 	var memNum uint64
-	//var mu sync.Mutex
-	//schedulerId, err:= strconv.Atoi(request.RequestId[:8])
+
 	//get scheduler Id in resource request data structure
 	currentRequestCpuNum := uint64(request.CurrentRequest.GetCpu())
 	currentRequestMemNum := uint64(request.CurrentRequest.GetMem())
 	log.Println("------------------------------------------")
-	log.Printf("currentRequestCpuNum = %dm, currentRequestMemNum = %dMi.\n", currentRequestCpuNum,
-		currentRequestMemNum)
+	log.Printf("currentRequestCpuNum: %dm, currentRequestMemNum: %dMi.\n", currentRequestCpuNum, currentRequestMemNum)
 
-	//mu.Lock()
-	allTasksRequestCpuNum, allTasksRequestMemNum = readAndWriteEtcd(request)
-	//mu.Unlock()
 	getK8sResource := k8sResource.GetK8sApiResource(podLister, nodeLister, masterIp)
-	log.Printf("Cluster's residual resource: cpu = %dm, mem = %dMi .\n", getK8sResource.MilliCpu, getK8sResource.Memory)
+	log.Printf("Cluster's residual resource: CPU = %dm, Mem = %dMi .\n", getK8sResource.MilliCpu, getK8sResource.Memory)
+
+	allTasksRequestCpuNum, allTasksRequestMemNum = readAndWriteEtcd(request)
+
 	//若customization=true且cost_grade=false，则请求的资源都满足,调度器要多少给多少
 	if request.Customization == true && request.CostGrade == false {
 		log.Printf("customization=true&&cost_grade=false,Cpunum= %dm,Memnum = %dMi\n", currentRequestCpuNum, currentRequestMemNum)
@@ -1767,51 +1763,35 @@ func resourceAllocateAlgorithm(request *resource_allocator.ResourceRequest) reso
 				//当ETCD所有当前保活调度器的资源需求不为0时
 				if (allTasksRequestCpuNum != 0) && (allTasksRequestMemNum != 0) {
 					log.Printf("All scheduler request resource Cpunum = %dm,Memnum = %dMi\n", allTasksRequestCpuNum, allTasksRequestMemNum)
+
 					otherCpuNum := currentRequestCpuNum * getK8sResource.MilliCpu / allTasksRequestCpuNum
 					otherMemNum := currentRequestMemNum * getK8sResource.Memory / allTasksRequestMemNum
 					if (getK8sResource.MilliCpu > allTasksRequestCpuNum) && (getK8sResource.Memory > allTasksRequestMemNum) {
 						log.Printf("allocation cpuNum: %dm, allocation memNum: %dMi.\n", currentRequestCpuNum, currentRequestMemNum)
+
 						return resourceAllocation{MilliCpu: uint64(currentRequestCpuNum), Memory: uint64(currentRequestMemNum)}
 					} else {
 						if (getK8sResource.MilliCpu < allTasksRequestCpuNum) && (getK8sResource.Memory > allTasksRequestMemNum) {
 							log.Printf("allocation cpuNum: %dm, allocation memNum: %dMi.\n", otherCpuNum, currentRequestMemNum)
-							//if otherCpuNum < 1000 {
-							//	otherCpuNum = 1000
-							//	log.Println("If otherCpuNum < 1000, otherCpuNum = 1000.")
-							//}
+
 							return resourceAllocation{MilliCpu: uint64(otherCpuNum), Memory: uint64(currentRequestMemNum)}
 						} else {
 							if (getK8sResource.MilliCpu > allTasksRequestCpuNum) && (getK8sResource.Memory < allTasksRequestMemNum) {
 								log.Printf("allocation cpuNum: %dm, allocation memNum: %dMi.\n", currentRequestCpuNum, otherMemNum)
+
 								return resourceAllocation{MilliCpu: currentRequestCpuNum, Memory: otherMemNum}
 							} else {
 								log.Printf("allocation cpuNum: %dm, allocation memNum: %dMi.\n", otherCpuNum, otherMemNum)
-								//if otherCpuNum < 1000 {
-								//	otherCpuNum = 1000
-								//	log.Println("If otherCpuNum < 1000, otherCpuNum = 1000.")
-								//}
+
 								return resourceAllocation{MilliCpu: otherCpuNum, Memory: otherMemNum}
 							}
 						}
 					}
 				} else {
-					//getK8sCluster1Resource := k8sResource.GetK8sApiResource(cluster1PodLister,cluster1NodeLister)
-					//    log.Println(getK8sCluster1Resource)
-					//getK8sCluster2Resource := k8sResource.GetK8sApiResource(cluster2PodLister,cluster2NodeLister)
-					//    log.Println(getK8sCluster2Resource)
-					//getK8sCluster3Resource := k8sResource.GetK8sApiResource(cluster3PodLister,cluster3NodeLister)
-					//    log.Println(getK8sCluster3Resource)
-					//getK8sResource.MilliCpu = getK8sCluster1Resource.MilliCpu + getK8sCluster2Resource.MilliCpu + getK8sCluster3Resource.MilliCpu
-					//getK8sResource.Memory = getK8sCluster1Resource.Memory + getK8sCluster2Resource.Memory + getK8sCluster3Resource.Memory
-					//getK8sResource.EphemeralStorage = getK8sCluster1Resource.EphemeralStorage + getK8sCluster2Resource.EphemeralStorage + getK8sCluster3Resource.EphemeralStorage
 					/*当连不上etcd，分配剩余资源的一百分之一*/
 					cpuNum = getK8sResource.MilliCpu / 20
 					memNum = getK8sResource.Memory / 20
 					log.Printf("获取etcd总的资源总任务资源为0，没有链接上，适当分配二十分之一剩余资源,allocation cpuNum: %dm, allocation memNum: %dMi.\n", cpuNum, memNum)
-					//if cpuNum < 1000 {
-					//	cpuNum = 1000
-					//	log.Println("If otherCpuNum < 1000, otherCpuNum = 1000.")
-					//}
 					return resourceAllocation{MilliCpu: cpuNum, Memory: memNum}
 				}
 			} else {
