@@ -709,6 +709,9 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 	log.Printf("This is envVars %#v\n", envVars)
 	//输出cpu和mem
 	log.Printf("This is cpu: %d, mem: %d\n", request.Cpu, request.Mem)
+	//设置缩放率
+	cpuWeight := 0.7
+	memWeight := 0.7
 
 	//使用自适应资源分配算法
 	if os.Getenv("RESOURCE_ALGORITHM") == "adaptive" {
@@ -901,8 +904,8 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 					},
 					Resources: v1.ResourceRequirements{
 						Requests: v1.ResourceList{
-							v1.ResourceCPU:    resource.MustParse(strconv.Itoa(int(request.Cpu)) + "m"),
-							v1.ResourceMemory: resource.MustParse(strconv.Itoa(int(request.Mem)) + "Mi"),
+							v1.ResourceCPU:    resource.MustParse(strconv.Itoa(int(cpuWeight*float64(request.Cpu))) + "m"),
+							v1.ResourceMemory: resource.MustParse(strconv.Itoa(int(memWeight*float64(request.Mem))) + "Mi"),
 						},
 						Limits: v1.ResourceList{
 							v1.ResourceCPU:    resource.MustParse(strconv.Itoa(int(request.Cpu)) + "m"),
