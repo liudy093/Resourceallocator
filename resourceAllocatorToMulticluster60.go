@@ -746,8 +746,8 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 					},
 					Resources: v1.ResourceRequirements{
 						Requests: v1.ResourceList{
-							v1.ResourceCPU:    resource.MustParse(strconv.Itoa(int(cpuNum)) + "m"),
-							v1.ResourceMemory: resource.MustParse(strconv.Itoa(int(memNum)) + "Mi"),
+							v1.ResourceCPU:    resource.MustParse(strconv.Itoa(int(cpuWeight*float64(request.Cpu))) + "m"),
+							v1.ResourceMemory: resource.MustParse(strconv.Itoa(int(memWeight*float64(request.Mem))) + "m"),
 						},
 						Limits: v1.ResourceList{
 							v1.ResourceCPU:    resource.MustParse(strconv.Itoa(int(cpuNum)) + "m"),
@@ -765,115 +765,178 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 				},
 			},
 		}
-		log.Println("This is a normal task pod with no user customization.")
+		log.Println("This is a normal task pod with adaptive.")
+	}
+
+	//GPU任务调度
+	if os.Getenv("RESOURCE_ALGORITHM") == "gpu" {
+		pod.Spec = v1.PodSpec{
+			SchedulerName: schedulerName,
+			RestartPolicy: v1.RestartPolicyNever,
+			Volumes: []v1.Volume{
+				{
+					Name: "pod-share-volume",
+					VolumeSource: v1.VolumeSource{
+						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+							ClaimName: pvcClient.ObjectMeta.Name,
+						},
+					},
+				},
+				//GPU任务需扩大shm
+				{
+					Name: "shm",
+					VolumeSource: v1.VolumeSource{
+						EmptyDir: &v1.EmptyDirVolumeSource{
+							Medium:    "Memory",
+							SizeLimit: resource.NewQuantity(32*1024*1024*1024, resource.BinarySI), // 32Gi
+						},
+					},
+				},
+			},
+			ServiceAccountName: "default",
+			Containers: []v1.Container{
+				{
+					Name:            "task-pod",
+					Image:           request.Image,
+					ImagePullPolicy: v1.PullIfNotPresent,
+					Ports: []v1.ContainerPort{
+						{
+							ContainerPort: 80,
+							Protocol:      v1.ProtocolTCP,
+						},
+					},
+					Resources: v1.ResourceRequirements{
+						//GPU任务需指定gpu
+						Limits: v1.ResourceList{
+							"nvidia.com/gpu": resource.MustParse("1"),
+						},
+					},
+					VolumeMounts: []v1.VolumeMount{
+						{
+							Name:      "pod-share-volume",
+							MountPath: volumePathInContainer,
+						},
+						//GPU任务需扩大shm
+						{
+							Name:      "shm",
+							MountPath: "/dev/shm",
+						},
+					},
+					Env: envVars,
+				},
+			},
+		}
+		log.Println("This is a gpu task pod.")
 	}
 
 	//若customization=true且cost_grade=false，则pod服务质量为Guaranteed，即request=limit；
 	//用户定制化工作流，且对花费无要求
-	if request.Customization == true {
-		if request.CostGrade == false {
-			pod.Spec = v1.PodSpec{
-				SchedulerName: schedulerName,
-				//RestartPolicy: v1.RestartPolicyAlways,
-				RestartPolicy: v1.RestartPolicyNever,
-				Volumes: []v1.Volume{
-					v1.Volume{
-						Name: "pod-share-volume",
-						VolumeSource: v1.VolumeSource{
-							PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
-								ClaimName: pvcClient.ObjectMeta.Name,
+	if os.Getenv("RESOURCE_ALGORITHM") == "default" {
+		if request.Customization == true {
+			if request.CostGrade == false {
+				pod.Spec = v1.PodSpec{
+					SchedulerName: schedulerName,
+					//RestartPolicy: v1.RestartPolicyAlways,
+					RestartPolicy: v1.RestartPolicyNever,
+					Volumes: []v1.Volume{
+						v1.Volume{
+							Name: "pod-share-volume",
+							VolumeSource: v1.VolumeSource{
+								PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+									ClaimName: pvcClient.ObjectMeta.Name,
+								},
 							},
 						},
 					},
-				},
-				//ServiceAccountName: saClient.Name,
-				ServiceAccountName: "default",
-				Containers: []v1.Container{
-					v1.Container{
-						Name:            "task-pod",
-						Image:           request.Image,
-						ImagePullPolicy: v1.PullIfNotPresent,
-						Ports: []v1.ContainerPort{
-							v1.ContainerPort{
-								ContainerPort: 80,
-								Protocol:      v1.ProtocolTCP,
+					//ServiceAccountName: saClient.Name,
+					ServiceAccountName: "default",
+					Containers: []v1.Container{
+						v1.Container{
+							Name:            "task-pod",
+							Image:           request.Image,
+							ImagePullPolicy: v1.PullIfNotPresent,
+							Ports: []v1.ContainerPort{
+								v1.ContainerPort{
+									ContainerPort: 80,
+									Protocol:      v1.ProtocolTCP,
+								},
 							},
+							Resources: v1.ResourceRequirements{
+								Requests: v1.ResourceList{
+									v1.ResourceCPU:    resource.MustParse(strconv.Itoa(int(request.Cpu)) + "m"),
+									v1.ResourceMemory: resource.MustParse(strconv.Itoa(int(request.Mem)) + "Mi"),
+								},
+								Limits: v1.ResourceList{
+									v1.ResourceCPU:    resource.MustParse(strconv.Itoa(int(request.Cpu)) + "m"),
+									v1.ResourceMemory: resource.MustParse(strconv.Itoa(int(request.Mem)) + "Mi"),
+								},
+							},
+							VolumeMounts: []v1.VolumeMount{
+								v1.VolumeMount{
+									Name:      "pod-share-volume",
+									MountPath: volumePathInContainer,
+									//SubPath: pvcClient.ObjectMeta.Name,
+								},
+							},
+							Env: envVars,
 						},
-						Resources: v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								v1.ResourceCPU:    resource.MustParse(strconv.Itoa(int(request.Cpu)) + "m"),
-								v1.ResourceMemory: resource.MustParse(strconv.Itoa(int(request.Mem)) + "Mi"),
-							},
-							Limits: v1.ResourceList{
-								v1.ResourceCPU:    resource.MustParse(strconv.Itoa(int(request.Cpu)) + "m"),
-								v1.ResourceMemory: resource.MustParse(strconv.Itoa(int(request.Mem)) + "Mi"),
-							},
-						},
-						VolumeMounts: []v1.VolumeMount{
-							v1.VolumeMount{
-								Name:      "pod-share-volume",
-								MountPath: volumePathInContainer,
-								//SubPath: pvcClient.ObjectMeta.Name,
-							},
-						},
-						Env: envVars,
 					},
-				},
+				}
+				log.Println("This is a customized task pod that doesn't care about cost.")
+			} else { //cost_grade=true，用户在意花费，则pod服务质量为Burstable，只设置request
+				pod.Spec = v1.PodSpec{
+					SchedulerName: schedulerName,
+					//RestartPolicy: v1.RestartPolicyAlways,
+					RestartPolicy: v1.RestartPolicyNever,
+					Volumes: []v1.Volume{
+						v1.Volume{
+							Name: "pod-share-volume",
+							VolumeSource: v1.VolumeSource{
+								PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+									ClaimName: pvcClient.ObjectMeta.Name,
+								},
+							},
+						},
+					},
+					//ServiceAccountName: saClient.Name,
+					ServiceAccountName: "default",
+					Containers: []v1.Container{
+						v1.Container{
+							Name:            "task-pod",
+							Image:           request.Image,
+							ImagePullPolicy: v1.PullIfNotPresent,
+							Ports: []v1.ContainerPort{
+								v1.ContainerPort{
+									ContainerPort: 80,
+									Protocol:      v1.ProtocolTCP,
+								},
+							},
+							Resources: v1.ResourceRequirements{
+								Requests: v1.ResourceList{
+									v1.ResourceCPU:    resource.MustParse(strconv.Itoa(int(request.Cpu)) + "m"),
+									v1.ResourceMemory: resource.MustParse(strconv.Itoa(int(request.Mem)) + "Mi"),
+								},
+								//Limits: v1.ResourceList{
+								//	v1.ResourceCPU:    resource.MustParse(strconv.Itoa(int(request.Cpu)) + "m"),
+								//	v1.ResourceMemory: resource.MustParse(strconv.Itoa(int(request.Mem)) + "Mi"),
+								//},
+							},
+							VolumeMounts: []v1.VolumeMount{
+								v1.VolumeMount{
+									Name:      "pod-share-volume",
+									MountPath: volumePathInContainer,
+									//SubPath: pvcClient.ObjectMeta.Name,
+								},
+							},
+							Env: envVars,
+						},
+					},
+				}
+				log.Println("This is a customized task pod that cares about cost.")
 			}
-			log.Println("This is a customized task pod that doesn't care about cost.")
-		} else { //cost_grade=true，用户在意花费，则pod服务质量为Burstable，只设置request
-			pod.Spec = v1.PodSpec{
-				SchedulerName: schedulerName,
-				//RestartPolicy: v1.RestartPolicyAlways,
-				RestartPolicy: v1.RestartPolicyNever,
-				Volumes: []v1.Volume{
-					v1.Volume{
-						Name: "pod-share-volume",
-						VolumeSource: v1.VolumeSource{
-							PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
-								ClaimName: pvcClient.ObjectMeta.Name,
-							},
-						},
-					},
-				},
-				//ServiceAccountName: saClient.Name,
-				ServiceAccountName: "default",
-				Containers: []v1.Container{
-					v1.Container{
-						Name:            "task-pod",
-						Image:           request.Image,
-						ImagePullPolicy: v1.PullIfNotPresent,
-						Ports: []v1.ContainerPort{
-							v1.ContainerPort{
-								ContainerPort: 80,
-								Protocol:      v1.ProtocolTCP,
-							},
-						},
-						Resources: v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								v1.ResourceCPU:    resource.MustParse(strconv.Itoa(int(request.Cpu)) + "m"),
-								v1.ResourceMemory: resource.MustParse(strconv.Itoa(int(request.Mem)) + "Mi"),
-							},
-							//Limits: v1.ResourceList{
-							//	v1.ResourceCPU:    resource.MustParse(strconv.Itoa(int(request.Cpu)) + "m"),
-							//	v1.ResourceMemory: resource.MustParse(strconv.Itoa(int(request.Mem)) + "Mi"),
-							//},
-						},
-						VolumeMounts: []v1.VolumeMount{
-							v1.VolumeMount{
-								Name:      "pod-share-volume",
-								MountPath: volumePathInContainer,
-								//SubPath: pvcClient.ObjectMeta.Name,
-							},
-						},
-						Env: envVars,
-					},
-				},
-			}
-			log.Println("This is a customized task pod that cares about cost.")
 		}
-	} else { //若customization=false,用户无定制化工作流，按照原来的策略，则pod服务质量为Guaranteed，即request=limit；
-
+	} else {
+		//若customization=false,用户无定制化工作流，按照原来的策略，则pod服务质量为Guaranteed，即request=limit；
 		// 创建非定制化的任务Pod
 		pod.Spec = v1.PodSpec{
 			SchedulerName: schedulerName,
@@ -904,8 +967,8 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 					},
 					Resources: v1.ResourceRequirements{
 						Requests: v1.ResourceList{
-							v1.ResourceCPU:    resource.MustParse(strconv.Itoa(int(cpuWeight*float64(request.Cpu))) + "m"),
-							v1.ResourceMemory: resource.MustParse(strconv.Itoa(int(memWeight*float64(request.Mem))) + "Mi"),
+							v1.ResourceCPU:    resource.MustParse(strconv.Itoa(int(request.Cpu)) + "m"),
+							v1.ResourceMemory: resource.MustParse(strconv.Itoa(int(request.Mem)) + "Mi"),
 						},
 						Limits: v1.ResourceList{
 							v1.ResourceCPU:    resource.MustParse(strconv.Itoa(int(request.Cpu)) + "m"),
