@@ -2,10 +2,18 @@ package k8sResource
 
 import (
 	"fmt"
+
 	_ "golang.org/x/net/context"
-	_"k8s.io/api/core/v1"
+	_ "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
+
 	//metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"log"
+	"os"
+	"path/filepath"
+	"text/tabwriter"
+	"time"
+
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
@@ -13,35 +21,34 @@ import (
 	v1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
-	"log"
-	"os"
-	"path/filepath"
-	"text/tabwriter"
-	"time"
 )
-//testing k8s cluster API by client-go packages
+
+// testing k8s cluster API by client-go packages
 var clientset *kubernetes.Clientset
-//type resourceRequest struct {
-//	MilliCpu int64
-//	Memory int64
-//	EphemeralStorage int64
-//	Node1ResidualCpuPercentage int64
-//	Node1ResidualMemPercentage int64
-//	Node2ResidualCpuPercentage int64
-//	Node2ResidualMemPercentage int64
-//}
+
+//	type resourceRequest struct {
+//		MilliCpu int64
+//		Memory int64
+//		EphemeralStorage int64
+//		Node1ResidualCpuPercentage int64
+//		Node1ResidualMemPercentage int64
+//		Node2ResidualCpuPercentage int64
+//		Node2ResidualMemPercentage int64
+//	}
 var resourceRequestNum resourceRequest
 var resourceAllocatableNum resourceRequest
 var readK8sConfigNum uint64
+
 type NodeResidualResource struct {
 	MilliCpu uint64
-	Memory uint64
+	Memory   uint64
 }
 type ResidualResourceMap map[string]NodeResidualResource
-//GetK8sApiResource
+
+// GetK8sApiResource
 type resourceRequest struct {
-	MilliCpu uint64
-	Memory uint64
+	MilliCpu         uint64
+	Memory           uint64
 	EphemeralStorage uint64
 }
 
@@ -50,16 +57,20 @@ func getK8sClient(configfile string) *kubernetes.Clientset {
 	//flag.Parse()
 	//var k8sconfig string
 	//if configfile == "/kubelet.kubeconfig" {
-		//k8sconfig, err  := filepath.Abs(filepath.Dir("/opt/kubernetes/cfg/kubelet.kubeconfig"))
+	//k8sconfig, err  := filepath.Abs(filepath.Dir("/opt/kubernetes/cfg/kubelet.kubeconfig"))
 	if configfile == "/kubelet.kubeconfig" {
-	k8sconfig, err  := filepath.Abs(filepath.Dir("/etc/kubernetes/kubelet.kubeconfig"))
+		k8sconfig, err := filepath.Abs(filepath.Dir("/etc/kubernetes/kubelet.kubeconfig"))
 		if err != nil {
 			panic(err.Error())
 		}
-		config, err := clientcmd.BuildConfigFromFlags("",k8sconfig + configfile)
+		config, err := clientcmd.BuildConfigFromFlags("", k8sconfig+configfile)
 		if err != nil {
 			log.Println(err)
 		}
+
+		// 1.24.17版本的k8s集群，需要手动设置Host
+		config.Host = "https://192.168.1.240:6443"
+
 		clientset, err = kubernetes.NewForConfig(config)
 		if err != nil {
 			log.Fatalln(err)
@@ -70,11 +81,11 @@ func getK8sClient(configfile string) *kubernetes.Clientset {
 		return clientset
 
 	} else {
-		k8sconfig, err  := filepath.Abs(filepath.Dir("/root/.kube/config"))
+		k8sconfig, err := filepath.Abs(filepath.Dir("/root/.kube/config"))
 		if err != nil {
 			panic(err.Error())
 		}
-		config, err := clientcmd.BuildConfigFromFlags("",k8sconfig + configfile)
+		config, err := clientcmd.BuildConfigFromFlags("", k8sconfig+configfile)
 		if err != nil {
 			log.Println(err)
 		}
@@ -97,11 +108,11 @@ func GetRemoteK8sClient() *kubernetes.Clientset {
 	//k8sconfig= flag.String("k8sconfig","/opt/kubernetes/cfg/kubelet.kubeconfig","kubernetes config file path")
 	//flag.Parse()
 	//var k8sconfig string
-	k8sconfig, err  := filepath.Abs(filepath.Dir("/etc/kubernetes/kubelet.kubeconfig"))
+	k8sconfig, err := filepath.Abs(filepath.Dir("/etc/kubernetes/kubelet.kubeconfig"))
 	if err != nil {
 		panic(err.Error())
 	}
-	config, err := clientcmd.BuildConfigFromFlags("",k8sconfig+ "/kubelet.kubeconfig")
+	config, err := clientcmd.BuildConfigFromFlags("", k8sconfig+"/kubelet.kubeconfig")
 	if err != nil {
 		log.Println(err)
 	}
@@ -118,8 +129,9 @@ func GetRemoteK8sClient() *kubernetes.Clientset {
 	}
 	return clientset
 }
+
 /*遍历每个Node,通过podLister和nodeLister获取该Node的剩余资源，包括各集群的Master*/
-func GetK8sEachNodeResource(podLister v1.PodLister,nodeLister v1.NodeLister, ResourceMap ResidualResourceMap) ResidualResourceMap {
+func GetK8sEachNodeResource(podLister v1.PodLister, nodeLister v1.NodeLister, ResourceMap ResidualResourceMap) ResidualResourceMap {
 	defer recoverPodListerFail()
 
 	//从podlister,nodelister中获取所有items
@@ -138,22 +150,22 @@ func GetK8sEachNodeResource(podLister v1.PodLister,nodeLister v1.NodeLister, Res
 		currentNodeAllocatableResource := getEachNodeAllocatableNum(nodeList, key)
 		val.MilliCpu = currentNodeAllocatableResource.MilliCpu - currentNodePodsResourceSum.MilliCpu
 		val.Memory = currentNodeAllocatableResource.Memory - currentNodePodsResourceSum.Memory
-		ResourceMap[key] = NodeResidualResource{val.MilliCpu, val.Memory/1024/1024}
-		if val.MilliCpu != 0 || val.Memory !=0 {
-			log.Println("Node:",key,"{",val.MilliCpu,val.Memory/1024/1024,"}")
+		ResourceMap[key] = NodeResidualResource{val.MilliCpu, val.Memory / 1024 / 1024}
+		if val.MilliCpu != 0 || val.Memory != 0 {
+			log.Println("Node:", key, "{", val.MilliCpu, val.Memory/1024/1024, "}")
 		}
 	}
 	//log.Println(ResourceMap)
 	return ResourceMap
 }
 
-//遍历集群Node1节点所有pods，获取集群所有pods的资源request值
-func getEachNodePodsResourceRequest(pods []*corev1.Pod,nodeName string) resourceRequest {
+// 遍历集群Node1节点所有pods，获取集群所有pods的资源request值
+func getEachNodePodsResourceRequest(pods []*corev1.Pod, nodeName string) resourceRequest {
 	defer recoverPodListerFail()
 	resourceRequestNum := resourceRequest{0, 0, 0}
 	for _, pod := range pods {
 		if pod.Status.HostIP == nodeName {
-			if (pod.Status.Phase == "Running")||(pod.Status.Phase == "Pending"){
+			if (pod.Status.Phase == "Running") || (pod.Status.Phase == "Pending") {
 				for _, container := range pod.Spec.Containers {
 					resourceRequestNum.MilliCpu += uint64(container.Resources.Requests.Cpu().MilliValue())
 					resourceRequestNum.Memory += uint64(container.Resources.Requests.Memory().Value())
@@ -170,18 +182,19 @@ func getEachNodePodsResourceRequest(pods []*corev1.Pod,nodeName string) resource
 	return resourceRequestNum
 }
 func recoverPodListerFail() {
-	if r := recover(); r!= nil {
+	if r := recover(); r != nil {
 		log.Println("recovered from ", r)
 	}
 }
-//获取集群node的allocatable资源值
-func getEachNodeAllocatableNum( nodes []*corev1.Node, nodeName string) resourceRequest {
+
+// 获取集群node的allocatable资源值
+func getEachNodeAllocatableNum(nodes []*corev1.Node, nodeName string) resourceRequest {
 	defer recoverPodListerFail()
-	resourceAllocatableNum := resourceRequest{0,0,0}
+	resourceAllocatableNum := resourceRequest{0, 0, 0}
 	for _, nod := range nodes {
 		//if nod.Name[0:9] != "admiralty" {
 		//if nod.Name[0:12] == "k8s-2-node-1" {
-		if nod.Name== nodeName {
+		if nod.Name == nodeName {
 			resourceAllocatableNum.MilliCpu = uint64(nod.Status.Allocatable.Cpu().MilliValue())
 			resourceAllocatableNum.Memory = uint64(nod.Status.Allocatable.Memory().Value())
 			resourceAllocatableNum.EphemeralStorage = uint64(nod.Status.Allocatable.StorageEphemeral().Value())
@@ -192,6 +205,7 @@ func getEachNodeAllocatableNum( nodes []*corev1.Node, nodeName string) resourceR
 	}
 	return resourceAllocatableNum
 }
+
 /*判断item是否在数组items内*/
 //func IsContain(items []string, item string) bool {
 //	for _, eachItem := range items {
@@ -203,11 +217,11 @@ func getEachNodeAllocatableNum( nodes []*corev1.Node, nodeName string) resourceR
 //}
 
 func recoverGetK8sApiResourceFail() {
-	if r := recover(); r!= nil {
+	if r := recover(); r != nil {
 		log.Println("recovered from GetK8sApiResourceFail", r)
 	}
 }
-func GetK8sApiResource(podLister v1.PodLister,nodeLister v1.NodeLister, masterIp string) resourceRequest {
+func GetK8sApiResource(podLister v1.PodLister, nodeLister v1.NodeLister, masterIp string) resourceRequest {
 	defer recoverGetK8sApiResourceFail()
 	//get k8s cluster config  client
 	//clientset := getK8sClient()
@@ -259,9 +273,9 @@ func GetK8sApiResource(podLister v1.PodLister,nodeLister v1.NodeLister, masterIp
 	//fmt.Println(nodes.Items[1].Status.Capacity.Cpu().String())
 	//fmt.Println(nodes.Items[1].Status.Capacity.Memory().String())
 	//fmt.Println("------------------------------------------------------------------")
-	allPodsResourceRequest := getPodsResourceRequest(podList,masterIp)
+	allPodsResourceRequest := getPodsResourceRequest(podList, masterIp)
 	log.Printf("allPodsResourceRequest cpuNum =%dm,allPodsResourceRequest memNum =%dMi\n",
-		allPodsResourceRequest.MilliCpu,allPodsResourceRequest.Memory/1024/1024)
+		allPodsResourceRequest.MilliCpu, allPodsResourceRequest.Memory/1024/1024)
 	//
 	//Node1PodsResourceRequest := getNode1PodsResourceRequest(podList)
 	//log.Printf("Node1PodsResourceRequest cpuNum =%dm,Node1PodsResourceRequest memNum =%dMi\n",
@@ -269,9 +283,9 @@ func GetK8sApiResource(podLister v1.PodLister,nodeLister v1.NodeLister, masterIp
 	//Node2PodsResourceRequest := getNode2PodsResourceRequest(podList)
 	//log.Printf("Node2PodsResourceRequest cpuNum =%dm,Node2PodsResourceRequest memNum =%dMi\n",
 	//	Node2PodsResourceRequest.MilliCpu,Node2PodsResourceRequest.Memory/1024/1024)
-	allNodesResourceAllocatable := getNodesAllocatableNum(nodeList,masterIp)
+	allNodesResourceAllocatable := getNodesAllocatableNum(nodeList, masterIp)
 	log.Printf("allNodesResourceAllocatable cpuNum =%dm,allNodesResourceAllocatable memNum =%dMi\n",
-		allNodesResourceAllocatable.MilliCpu,allNodesResourceAllocatable.Memory/1024/1024)
+		allNodesResourceAllocatable.MilliCpu, allNodesResourceAllocatable.Memory/1024/1024)
 	//Node1ResourceAllocatable := getNode1AllocatableNum(nodeList)
 	//log.Printf("Node1ResourceAllocatable cpuNum =%dm,Node1ResourceAllocatable memNum =%dMi\n",
 	//	Node1ResourceAllocatable.MilliCpu,Node1ResourceAllocatable.Memory/1024/1024)
@@ -284,30 +298,30 @@ func GetK8sApiResource(podLister v1.PodLister,nodeLister v1.NodeLister, masterIp
 	//fmt.Printf("Residual Memory = %dMi\n", (allNodesResourceAllocatable.Memory-allPodsResourceRequest.Memory)/1024/1024)
 	readK8sConfigNum++
 	log.Println("--------------------------------------------------------")
-	log.Printf("get k8s resource in %dth time through informer.\n",readK8sConfigNum)
+	log.Printf("get k8s resource in %dth time through informer.\n", readK8sConfigNum)
 	if (allPodsResourceRequest.MilliCpu >= allNodesResourceAllocatable.MilliCpu) ||
 		(allPodsResourceRequest.Memory >= allNodesResourceAllocatable.Memory) {
-		return resourceRequest{MilliCpu: 0,Memory: 0,EphemeralStorage: 0}
-	}else {
+		return resourceRequest{MilliCpu: 0, Memory: 0, EphemeralStorage: 0}
+	} else {
 		return resourceRequest{MilliCpu: allNodesResourceAllocatable.MilliCpu - allPodsResourceRequest.MilliCpu,
 			Memory:           (allNodesResourceAllocatable.Memory - allPodsResourceRequest.Memory) / 1024 / 1024,
 			EphemeralStorage: allNodesResourceAllocatable.EphemeralStorage - allPodsResourceRequest.EphemeralStorage,
 		}
 	}
-	    //Node1ResidualCpuPercentage:(Node1ResourceAllocatable.MilliCpu-Node1PodsResourceRequest.MilliCpu)*100/Node1ResourceAllocatable.MilliCpu,
-		//Node1ResidualMemPercentage:(Node1ResourceAllocatable.Memory-Node1PodsResourceRequest.Memory)*100/Node1ResourceAllocatable.Memory,
-		//Node2ResidualCpuPercentage:(Node2ResourceAllocatable.MilliCpu-Node2PodsResourceRequest.MilliCpu)*100/Node2ResourceAllocatable.MilliCpu,
-		//Node2ResidualMemPercentage:(Node2ResourceAllocatable.Memory-Node2PodsResourceRequest.Memory)*100/Node2ResourceAllocatable.Memory}
+	//Node1ResidualCpuPercentage:(Node1ResourceAllocatable.MilliCpu-Node1PodsResourceRequest.MilliCpu)*100/Node1ResourceAllocatable.MilliCpu,
+	//Node1ResidualMemPercentage:(Node1ResourceAllocatable.Memory-Node1PodsResourceRequest.Memory)*100/Node1ResourceAllocatable.Memory,
+	//Node2ResidualCpuPercentage:(Node2ResourceAllocatable.MilliCpu-Node2PodsResourceRequest.MilliCpu)*100/Node2ResourceAllocatable.MilliCpu,
+	//Node2ResidualMemPercentage:(Node2ResourceAllocatable.Memory-Node2PodsResourceRequest.Memory)*100/Node2ResourceAllocatable.Memory}
 }
 func printK8SPodInfo(pods corev1.PodList) {
 	fmt.Println("--------------------------------------------------------------------------------")
 
 	const format = "%v\t%v\t%v\t%v\t%v\t%v\t\n"
-	tw := new(tabwriter.Writer).Init(os.Stdout,0,8,2,' ',0)
-	fmt.Fprintf(tw,format,"Namespace","Name","Status","Age","PodIP","Node")
-	fmt.Fprintf(tw,format,"------","------","-----","----","-------","-----")
+	tw := new(tabwriter.Writer).Init(os.Stdout, 0, 8, 2, ' ', 0)
+	fmt.Fprintf(tw, format, "Namespace", "Name", "Status", "Age", "PodIP", "Node")
+	fmt.Fprintf(tw, format, "------", "------", "-----", "----", "-------", "-----")
 	for _, r := range pods.Items {
-		fmt.Fprintf(tw,format,r.Namespace,r.Name,r.Status.Phase,r.Status.StartTime,r.Status.PodIP, r.Spec.NodeName)
+		fmt.Fprintf(tw, format, r.Namespace, r.Name, r.Status.Phase, r.Status.StartTime, r.Status.PodIP, r.Spec.NodeName)
 	}
 	tw.Flush()
 
@@ -315,25 +329,26 @@ func printK8SPodInfo(pods corev1.PodList) {
 func printK8SNodeInfo(nodes corev1.NodeList) {
 	fmt.Println("--------------------------------------------------------------------------------")
 	const format1 = "%v\t%v\t%v\t%v\t%v\t%v\t%v\t\n"
-	tw1 := new(tabwriter.Writer).Init(os.Stdout,0,8,2,' ',0)
-	fmt.Fprintf(tw1,format1,"Name","Status","CreateTime",
-		"Allocatable.Cpu","Allocatable.Memory","Capacity.Cpu","Capacity.Memory")
-	fmt.Fprintf(tw1,format1,"------","------","---------","----","----","----","----")
+	tw1 := new(tabwriter.Writer).Init(os.Stdout, 0, 8, 2, ' ', 0)
+	fmt.Fprintf(tw1, format1, "Name", "Status", "CreateTime",
+		"Allocatable.Cpu", "Allocatable.Memory", "Capacity.Cpu", "Capacity.Memory")
+	fmt.Fprintf(tw1, format1, "------", "------", "---------", "----", "----", "----", "----")
 	for _, r := range nodes.Items {
-		fmt.Fprintf(tw1,format1,r.Name,r.Status.Conditions[len(r.Status.Conditions)-1].Type,
-			r.CreationTimestamp,r.Status.Allocatable.Cpu(),
-			r.Status.Allocatable.Memory(),r.Status.Capacity.Cpu(),
+		fmt.Fprintf(tw1, format1, r.Name, r.Status.Conditions[len(r.Status.Conditions)-1].Type,
+			r.CreationTimestamp, r.Status.Allocatable.Cpu(),
+			r.Status.Allocatable.Memory(), r.Status.Capacity.Cpu(),
 			r.Status.Capacity.Memory())
 	}
 	tw1.Flush()
 }
-//遍历集群所有pods，获取集群所有pods的资源request值
+
+// 遍历集群所有pods，获取集群所有pods的资源request值
 func getPodsResourceRequest(pods []*corev1.Pod, clusterMasterIp string) resourceRequest {
 	defer recoverPodListerFail()
 	resourceRequestNum := resourceRequest{0, 0, 0}
 	for _, pod := range pods {
 		if pod.Status.HostIP != clusterMasterIp {
-			if (pod.Status.Phase == "Running")||(pod.Status.Phase == "Pending"){
+			if (pod.Status.Phase == "Running") || (pod.Status.Phase == "Pending") {
 				for _, container := range pod.Spec.Containers {
 					resourceRequestNum.MilliCpu += uint64(container.Resources.Requests.Cpu().MilliValue())
 					resourceRequestNum.Memory += uint64(container.Resources.Requests.Memory().Value())
@@ -350,12 +365,13 @@ func getPodsResourceRequest(pods []*corev1.Pod, clusterMasterIp string) resource
 	}
 	return resourceRequestNum
 }
-//遍历集群Node1节点所有pods，获取集群所有pods的资源request值
+
+// 遍历集群Node1节点所有pods，获取集群所有pods的资源request值
 func getNode1PodsResourceRequest(pods []*corev1.Pod) resourceRequest {
 	defer recoverPodListerFail()
 	resourceRequestNum := resourceRequest{0, 0, 0}
 	for _, pod := range pods {
-		if pod.Status.HostIP == "121.250.173.194"{
+		if pod.Status.HostIP == "121.250.173.194" {
 			if pod.Status.Phase == "Running" {
 				for _, container := range pod.Spec.Containers {
 					resourceRequestNum.MilliCpu += uint64(container.Resources.Requests.Cpu().MilliValue())
@@ -375,12 +391,12 @@ func getNode1PodsResourceRequest(pods []*corev1.Pod) resourceRequest {
 	return resourceRequestNum
 }
 
-//遍历集群Node2节点所有pods，获取集群所有pods的资源request值
+// 遍历集群Node2节点所有pods，获取集群所有pods的资源request值
 func getNode2PodsResourceRequest(pods []*corev1.Pod) resourceRequest {
 	defer recoverPodListerFail()
 	resourceRequestNum := resourceRequest{0, 0, 0}
 	for _, pod := range pods {
-		if pod.Status.HostIP == "121.250.173.195"{
+		if pod.Status.HostIP == "121.250.173.195" {
 			if pod.Status.Phase == "Running" {
 				for _, container := range pod.Spec.Containers {
 					resourceRequestNum.MilliCpu += uint64(container.Resources.Requests.Cpu().MilliValue())
@@ -399,12 +415,13 @@ func getNode2PodsResourceRequest(pods []*corev1.Pod) resourceRequest {
 	}
 	return resourceRequestNum
 }
-//获取集群所有nodes的allocatable资源值
+
+// 获取集群所有nodes的allocatable资源值
 func getNodesAllocatableNum(nodes []*corev1.Node, clusterMasterIp string) resourceRequest {
-	resourceAllocatableNum := resourceRequest{0,0,0}
+	resourceAllocatableNum := resourceRequest{0, 0, 0}
 	for _, nod := range nodes {
-        //if nod.Name[0:9] != "admiralty" {
-        //if nod.Name[0:10] == "k8s-2-node" {
+		//if nod.Name[0:9] != "admiralty" {
+		//if nod.Name[0:10] == "k8s-2-node" {
 		//if (nod.Name != "121.250.173.190")&&(nod.Name != "121.250.173.191")&&(nod.Name != "121.250.173.192"){
 		if nod.Name != clusterMasterIp {
 			resourceAllocatableNum.MilliCpu += uint64(nod.Status.Allocatable.Cpu().MilliValue())
@@ -414,20 +431,21 @@ func getNodesAllocatableNum(nodes []*corev1.Node, clusterMasterIp string) resour
 			//nod.Name, nod.Status.Allocatable.Cpu().MilliValue(),nod.Status.Allocatable.Memory().Value()/1024/1024)
 			//}
 		}
-    }
+	}
 	//log.Printf("All nodes: Allocatable CpuNum = %dm,Allocatable MemNum = %dMi\n",
 	//	resourceAllocatableNum.MilliCpu,resourceAllocatableNum.Memory/1024/1024)
 	return resourceAllocatableNum
 }
-//获取集群node1的allocatable资源值
-func getNode1AllocatableNum( nodes []*corev1.Node) resourceRequest {
+
+// 获取集群node1的allocatable资源值
+func getNode1AllocatableNum(nodes []*corev1.Node) resourceRequest {
 
 	defer recoverPodListerFail()
-	resourceAllocatableNum := resourceRequest{0,0,0}
+	resourceAllocatableNum := resourceRequest{0, 0, 0}
 	for _, nod := range nodes {
 		//if nod.Name[0:9] != "admiralty" {
 		//if nod.Name[0:12] == "k8s-2-node-1" {
-		if nod.Name== "121.250.173.194" {
+		if nod.Name == "121.250.173.194" {
 			resourceAllocatableNum.MilliCpu = uint64(nod.Status.Allocatable.Cpu().MilliValue())
 			resourceAllocatableNum.Memory = uint64(nod.Status.Allocatable.Memory().Value())
 			resourceAllocatableNum.EphemeralStorage = uint64(nod.Status.Allocatable.StorageEphemeral().Value())
@@ -438,14 +456,15 @@ func getNode1AllocatableNum( nodes []*corev1.Node) resourceRequest {
 	}
 	return resourceAllocatableNum
 }
-//获取集群所有node2的allocatable资源值
+
+// 获取集群所有node2的allocatable资源值
 func getNode2AllocatableNum(nodes []*corev1.Node) resourceRequest {
 
-	resourceAllocatableNum := resourceRequest{0,0,0}
+	resourceAllocatableNum := resourceRequest{0, 0, 0}
 	for _, nod := range nodes {
 		//if nod.Name[0:9] != "admiralty" {
 		//if nod.Name[0:12] == "k8s-2-node-2" {
-		if nod.Name== "121.250.173.195" {
+		if nod.Name == "121.250.173.195" {
 			resourceAllocatableNum.MilliCpu = uint64(nod.Status.Allocatable.Cpu().MilliValue())
 			resourceAllocatableNum.Memory = uint64(nod.Status.Allocatable.Memory().Value())
 			resourceAllocatableNum.EphemeralStorage = uint64(nod.Status.Allocatable.StorageEphemeral().Value())
@@ -456,9 +475,10 @@ func getNode2AllocatableNum(nodes []*corev1.Node) resourceRequest {
 	}
 	return resourceAllocatableNum
 }
-//创建pod的Informer,node的Informer,namespace的Informer,service的Informer,pvc的Informer
-func InitInformer(stop chan struct{}, configfile string)(v1.PodLister,
-	v1.NodeLister,v1.NamespaceLister,v1.ServiceLister,v1.PersistentVolumeClaimLister){
+
+// 创建pod的Informer,node的Informer,namespace的Informer,service的Informer,pvc的Informer
+func InitInformer(stop chan struct{}, configfile string) (v1.PodLister,
+	v1.NodeLister, v1.NamespaceLister, v1.ServiceLister, v1.PersistentVolumeClaimLister) {
 	//连接k8s集群apiserver，创建clientset
 	informerClientset := getK8sClient(configfile)
 	//初始化informer
@@ -485,7 +505,7 @@ func InitInformer(stop chan struct{}, configfile string)(v1.PodLister,
 	//创建pod，node,namespace,service的Lister
 	podInformerLister := podInformer.Lister()
 	nodeInformerLister := nodeInformer.Lister()
-    namespaceInformerLister := namespaceInformer.Lister()
+	namespaceInformerLister := namespaceInformer.Lister()
 	serviceInformerLister := serviceInformer.Lister()
 	pvcInformerLister := pvcInformer.Lister()
 
