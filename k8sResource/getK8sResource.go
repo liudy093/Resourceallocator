@@ -116,6 +116,9 @@ func GetRemoteK8sClient() *kubernetes.Clientset {
 	if err != nil {
 		log.Println(err)
 	}
+
+	// 1.24.17版本的k8s集群，需要手动设置Host
+	config.Host = "https://192.168.1.240:6443"
 	//viper.AddConfigPath("/opt/kubernetes/cfg/")     //设置读取的文件路径
 	//viper.SetConfigName("kubelet") //设置读取的文件名
 	//viper.SetConfigType("yaml")   //设置文件的类型
