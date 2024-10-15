@@ -488,7 +488,7 @@ func InitInformer(stop chan struct{}, configfile string) (v1.PodLister,
 	factory := informers.NewSharedInformerFactory(informerClientset, time.Second*3)
 
 	//测试，打印config.host
-	log.Println(informerClientset.RESTClient().Get().URL().Host)
+	//log.Println(informerClientset.RESTClient().Get().URL().Host)
 
 	//创建pod的Informer
 	podInformer := factory.Core().V1().Pods()

@@ -301,7 +301,7 @@ func (rs *ResourceServiceImpl) UpdateSchedulerAliveStatus(ctx context.Context, r
 	log.Println("Updating scheduler AliveStatus.")
 	cli := getClinetv3()
 	if cli == nil {
-		log.Println("get *clientv3.Client failed.")
+		log.Println("get *clientv3.Client failed.UpdateSchedulerAliveStatu")
 	}
 	defer cli.Close()
 	//读取etcd过程.取值，设置超时为3秒
@@ -678,8 +678,8 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 		return "", err
 	}
 	//输出解析的环境变量map
-	log.Printf("This is InputVector: %#v\n", request.InputVector)
-	log.Printf("This is ParsedenvVars: %#v\n", parsedEnvVars)
+	//log.Printf("This is InputVector: %#v\n", request.InputVector)
+	//log.Printf("This is ParsedenvVars: %#v\n", parsedEnvVars)
 
 	// 创建task pod
 	pod := new(v1.Pod)
@@ -706,9 +706,9 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 		envVars = append(envVars, envVar)
 	}
 	//输出envVars
-	log.Printf("This is envVars %#v\n", envVars)
+	//log.Printf("This is envVars %#v\n", envVars)
 	//输出cpu和mem
-	log.Printf("This is cpu: %d, mem: %d\n", request.Cpu, request.Mem)
+	//log.Printf("This is cpu: %d, mem: %d\n", request.Cpu, request.Mem)
 	//设置缩放率
 	cpuWeight := 0.7
 	memWeight := 0.7
@@ -1885,7 +1885,7 @@ func readAndWriteEtcd(request *resource_allocator.ResourceRequest) (globalReques
 	//获取clinetv3
 	cli := getClinetv3()
 	if cli == nil {
-		log.Println("get *clientv3.Client failed.")
+		log.Println("get *clientv3.Client failed.readAndWriteEtcd")
 	}
 	defer cli.Close()
 
