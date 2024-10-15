@@ -124,8 +124,8 @@ var (
 	dialTimeout    = 3 * time.Second
 	requestTimeout = 2 * time.Second
 	//endpoints   = []string{"192.168.0.160:2379","192.168.0.161:2379","192.168.0.162:2379"}
-	etcdCert    = "/etc/etcd/ssl/etcd.pem"
-	etcdCertKey = "/etc/etcd/ssl/etcd-key.pem"
+	etcdCert    = "/etc/kubernetes/ssl/etcd.pem"
+	etcdCertKey = "/etc/kubernetes/ssl/etcd-key.pem"
 	etcdCa      = "/etc/kubernetes/ssl/ca.pem"
 )
 
