@@ -831,7 +831,7 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 
 	//若customization=true且cost_grade=false，则pod服务质量为Guaranteed，即request=limit；
 	//用户定制化工作流，且对花费无要求
-	if os.Getenv("RESOURCE_ALGORITHM") == "defalut" {
+	if os.Getenv("RESOURCE_ALGORITHM") == "default" {
 		if request.Customization == true {
 			if request.CostGrade == false {
 				pod.Spec = v1.PodSpec{
