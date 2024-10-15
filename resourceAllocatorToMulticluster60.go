@@ -1956,11 +1956,17 @@ func getClinetv3() *clientv3.Client {
 	endpoints := getEtcdEnv()
 	//封装证书访问
 	cert, err := tls.LoadX509KeyPair(etcdCert, etcdCertKey)
+
 	if err != nil {
+		//检测证书是否加载成功
+		log.Println("connect failed, err: cert", err)
 		return nil
 	}
 	caData, err := ioutil.ReadFile(etcdCa)
+
 	if err != nil {
+		//检测caData是否加载成功
+		log.Println("connect failed, err: caData", err)
 		return nil
 	}
 	pool := x509.NewCertPool()
