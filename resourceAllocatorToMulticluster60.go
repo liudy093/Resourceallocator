@@ -601,7 +601,8 @@ func createPvc(clientService *kubernetes.Clientset, nameOfNamespace string) (*v1
 			},
 			Resources: v1.ResourceRequirements{
 				Requests: v1.ResourceList{
-					v1.ResourceStorage: resource.MustParse("5" + "Mi"),
+					//gpu任务需要20Gi的存储空间，其他任务需要5Mi的存储空间
+					v1.ResourceStorage: resource.MustParse("20" + "Gi"),
 				},
 			},
 			StorageClassName: &storageClassName,
