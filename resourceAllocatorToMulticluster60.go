@@ -771,6 +771,10 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 
 	//GPU任务调度
 	if os.Getenv("RESOURCE_ALGORITHM") == "gpu" {
+		//service需要label来匹配
+		pod.ObjectMeta.Labels = map[string]string{
+			"type": taskPodName,
+		}
 		pod.Spec = v1.PodSpec{
 			SchedulerName: schedulerName,
 			RestartPolicy: v1.RestartPolicyNever,
@@ -828,6 +832,44 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 			},
 		}
 		log.Println("This is a gpu task pod.")
+	}
+
+	//从任务的环境变量获取是否需要service,环境变量在envVars中
+	serviceValue, exists := parsedEnvVars["service"]
+	serviceRequired := exists && serviceValue == "yes"
+	if serviceRequired {
+		// 创建Service
+		service := &v1.Service{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Service",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      taskPodName,
+				Namespace: podNamespace.Name,
+				Labels:    map[string]string{"app": "service-task"},
+			},
+			Spec: v1.ServiceSpec{
+				Selector: map[string]string{"type": taskPodName},
+				Ports: []v1.ServicePort{
+					{
+						Protocol:   v1.ProtocolTCP,       // 确保协议设置为 TCP
+						Port:       8000,                 // 对外暴露的端口，可以根据需要更改
+						TargetPort: intstr.FromInt(8000), // Pod 中的容器端口
+						NodePort:   30080,                // NodePort，可以根据需要更改
+					},
+				},
+				Type: v1.ServiceTypeNodePort, // 设置服务类型为NodePort
+			},
+		}
+
+		// 创建 Service
+		_, err := clientService.CoreV1().Services(podNamespace.Name).Create(service)
+		if err != nil {
+			log.Println("Create service error: ", err)
+			return "", err
+		}
+		log.Println("Service created.")
 	}
 
 	//若customization=true且cost_grade=false，则pod服务质量为Guaranteed，即request=limit；
