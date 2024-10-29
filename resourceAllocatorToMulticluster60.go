@@ -836,7 +836,7 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 
 	//从任务的环境变量获取是否需要service,环境变量在envVars中
 	serviceValue, exists := parsedEnvVars["SERVICE"]
-	serviceRequired := exists && serviceValue == "yes"
+	serviceRequired := exists && serviceValue == "1"
 	if serviceRequired {
 		// 创建Service
 		service := &v1.Service{
