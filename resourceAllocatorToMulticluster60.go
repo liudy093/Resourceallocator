@@ -845,7 +845,7 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 				APIVersion: "v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      taskPodName,
+				Name:      "service-task",
 				Namespace: podNamespace.Name,
 				Labels:    map[string]string{"app": "service-task"},
 			},
