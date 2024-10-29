@@ -773,7 +773,7 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 	if os.Getenv("RESOURCE_ALGORITHM") == "gpu" {
 		//service需要label来匹配
 		pod.ObjectMeta.Labels = map[string]string{
-			"type": taskPodName,
+			"type": request.TaskName,
 		}
 		pod.Spec = v1.PodSpec{
 			SchedulerName: schedulerName,
@@ -850,7 +850,7 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 				Labels:    map[string]string{"app": "service-task"},
 			},
 			Spec: v1.ServiceSpec{
-				Selector: map[string]string{"type": taskPodName},
+				Selector: map[string]string{"type": request.TaskName},
 				Ports: []v1.ServicePort{
 					{
 						Protocol:   v1.ProtocolTCP,       // 确保协议设置为 TCP
