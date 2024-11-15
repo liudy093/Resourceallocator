@@ -1009,8 +1009,8 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 						},
 						Resources: v1.ResourceRequirements{
 							Requests: v1.ResourceList{
-								v1.ResourceCPU:    resource.MustParse(strconv.Itoa(int(request.Cpu)) + "m"),
-								v1.ResourceMemory: resource.MustParse(strconv.Itoa(int(request.Mem)) + "Mi"),
+								v1.ResourceCPU:    resource.MustParse(strconv.Itoa(int(cpuWeight*float64(request.Cpu))) + "m"),
+								v1.ResourceMemory: resource.MustParse(strconv.Itoa(int(memWeight*float64(request.Mem))) + "Mi"),
 							},
 							Limits: v1.ResourceList{
 								v1.ResourceCPU:    resource.MustParse(strconv.Itoa(int(request.Cpu)) + "m"),
