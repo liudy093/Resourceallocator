@@ -69,7 +69,7 @@ func getK8sClient(configfile string) *kubernetes.Clientset {
 		}
 
 		// 1.24.17版本的k8s集群，需要手动设置Host
-		config.Host = "https://192.168.1.240:6443"
+		//config.Host = "https://192.168.1.240:6443"
 
 		clientset, err = kubernetes.NewForConfig(config)
 		if err != nil {
