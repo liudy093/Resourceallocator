@@ -711,8 +711,8 @@ func clientTaskCreatePod(request *resource_allocator.CreateTaskPodRequest, clien
 	//输出cpu和mem
 	//log.Printf("This is cpu: %d, mem: %d\n", request.Cpu, request.Mem)
 	//设置缩放率
-	cpuWeight := 0.7
-	memWeight := 0.7
+	cpuWeight := 0.8
+	memWeight := 0.8
 
 	//使用自适应资源分配算法
 	if os.Getenv("RESOURCE_ALGORITHM") == "adaptive" {
